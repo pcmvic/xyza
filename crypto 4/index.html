@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cognito Cripto: Painel de Análise Profunda</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js para o gráfico personalizado -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <!-- Script do TradingView para os widgets de análise -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a0c10;
+            background-image: radial-gradient(circle at 1% 1%, #162031 0%, #0a0c10 50%);
+        }
+        .card {
+            background-color: rgba(22, 27, 34, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid #30363d;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+        .crypto-item {
+             background-color: #161b22;
+             border: 1px solid #30363d;
+             transition: background-color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+        .crypto-item:hover {
+            transform: translateY(-2px);
+            background-color: #1c2128;
+            border-color: #4ea8de;
+        }
+        #technical-analysis-widget-container { height: 450px; }
+        #tradingview-chart-container { height: 70vh; }
+        .favorite-star { cursor: pointer; transition: color 0.2s, transform 0.2s; }
+        .favorite-star:hover { transform: scale(1.2); }
+        .favorite-star.active { color: #facc15; }
+        .rsi-gauge-bg { background-color: #374151; }
+        .rsi-gauge-fill { transition: width 0.5s ease-in-out; }
+    </style>
+</head>
+<body class="text-gray-300 flex justify-center min-h-screen p-4 sm:p-6 lg:p-8">
+
+    <div class="w-full max-w-screen-2xl">
+        <!-- Container da Lista de Ativos -->
+        <div id="list-container">
+            <header class="text-center mb-8">
+                <h1 class="text-3xl sm:text-4xl font-bold text-white">Cognito Cripto</h1>
+                <p class="text-gray-400 mt-2">Painel de Análise Profunda com IA</p>
+            </header>
+            <div class="max-w-6xl mx-auto">
+                <div id="market-overview-card" class="card p-5 rounded-lg mb-8 border-l-4 border-cyan-500">
+                    <h2 class="text-xl font-bold text-white mb-2">Visão Geral do Mercado</h2>
+                    <div id="market-overview-content" class="text-gray-400"><p>Analisando o sentimento do mercado...</p></div>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                    <input type="text" id="search-bar" placeholder="Pesquisar por nome ou símbolo..." class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                    <div class="flex items-center justify-center gap-3 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2">
+                        <label for="favorites-toggle" class="font-medium text-white">Favoritos</label>
+                        <input type="checkbox" id="favorites-toggle" class="h-5 w-5 rounded text-cyan-600 bg-gray-700 border-gray-600 focus:ring-cyan-500">
+                    </div>
+                </div>
+                <div class="hidden lg:grid grid-cols-12 gap-4 px-6 py-3 text-sm font-bold text-gray-400">
+                    <div class="col-span-1"></div><div class="col-span-3">ATIVO</div><div class="col-span-2 text-right">PREÇO</div><div class="col-span-2 text-right">VARIAÇÃO (24H)</div><div class="col-span-2 text-right">CAP. DE MERCADO</div><div class="col-span-2">TENDÊNCIA (7D)</div>
+                </div>
+                <div id="crypto-list" class="flex flex-col gap-3">
+                    <div id="loading-indicator" class="text-center py-10"><p class="text-gray-400">A carregar dados...</p></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Container dos Detalhes do Ativo (inicialmente oculto) -->
+        <div id="details-container" class="hidden">
+            <header id="asset-main-header" class="relative card rounded-lg p-6 mb-8 overflow-hidden"></header>
+            <div id="details-grid" class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <div class="xl:col-span-1 flex flex-col gap-6">
+                    <div id="ai-analysis-card" class="card p-5 rounded-lg border-t-4 border-purple-500"></div>
+                    <div id="trend-indicator-card" class="card p-5 rounded-lg"></div>
+                    <div id="rsi-card" class="card p-5 rounded-lg"></div>
+                    <div id="macd-card" class="card p-5 rounded-lg"></div>
+                    <div id="market-data-card" class="card p-5 rounded-lg border-t-4 border-cyan-500"></div>
+                    <div class="card p-5 rounded-lg border-t-4 border-indigo-500">
+                        <div class="flex items-center gap-3 mb-4"><svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg><h2 class="text-xl font-bold text-white">Retração de Fibonacci</h2></div>
+                        <div id="fib-controls" class="flex gap-2 mb-4"></div>
+                        <div id="fibonacci-levels-container"></div>
+                    </div>
+                </div>
+                <div class="xl:col-span-2 flex flex-col gap-6">
+                    <div class="card p-5 rounded-lg"><h2 class="text-xl font-bold text-white mb-4">Gráfico Interativo (TradingView)</h2><div id="tradingview-chart-container"></div></div>
+                    <div class="card p-5 rounded-lg border-t-4 border-blue-500"><div class="flex items-center gap-3 mb-4"><svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2z"></path></svg><h2 class="text-xl font-bold text-white">Resumo Técnico</h2></div><div id="technical-analysis-widget-container"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Inserir a Chave da API -->
+    <div id="api-key-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center hidden z-50">
+        <div class="card p-8 rounded-lg max-w-lg w-full m-4">
+            <h2 class="text-2xl font-bold text-white mb-4">Configurar Chave da API Gemini</h2>
+            <p class="text-gray-400 mb-6">Para ativar as funcionalidades de IA, por favor, insira a sua chave pessoal da API Gemini. Ela será guardada de forma segura no seu navegador.</p>
+            <label for="api-key-input" class="font-semibold text-white">Sua Chave da API</label>
+            <input type="password" id="api-key-input" class="w-full mt-2 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Cole a sua chave aqui...">
+            <div class="flex justify-end gap-4 mt-6">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-gray-400 hover:text-white py-2 px-4 rounded-lg transition-colors">Obter uma Chave</a>
+                <button id="save-api-key-btn" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg">Salvar e Continuar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            const dom = {
+                listContainer: document.getElementById('list-container'),
+                detailsContainer: document.getElementById('details-container'),
+                detailsGrid: document.getElementById('details-grid'),
+                cryptoList: document.getElementById('crypto-list'),
+                searchBar: document.getElementById('search-bar'),
+                favoritesToggle: document.getElementById('favorites-toggle'),
+                loadingIndicator: document.getElementById('loading-indicator'),
+                assetMainHeader: document.getElementById('asset-main-header'),
+                marketDataCard: document.getElementById('market-data-card'),
+                marketOverviewContent: document.getElementById('market-overview-content'),
+                aiAnalysisCard: document.getElementById('ai-analysis-card'),
+                techAnalysisContainer: document.getElementById('technical-analysis-widget-container'),
+                chartContainer: document.getElementById('tradingview-chart-container'),
+                fibContainer: document.getElementById('fibonacci-levels-container'),
+                fibControls: document.getElementById('fib-controls'),
+                trendCard: document.getElementById('trend-indicator-card'),
+                rsiCard: document.getElementById('rsi-card'),
+                macdCard: document.getElementById('macd-card'),
+                apiKeyModal: document.getElementById('api-key-modal'),
+                apiKeyInput: document.getElementById('api-key-input'),
+                saveApiKeyBtn: document.getElementById('save-api-key-btn'),
+            };
+
+            let allCoinsData = [];
+            let favorites = JSON.parse(localStorage.getItem('cryptoFavorites')) || [];
+            let miniChartInstance = null;
+            let currentCoin = null;
+            let geminiApiKey = localStorage.getItem('geminiApiKey') || null;
+            let pendingAiAction = null;
+
+            const API_BASE_URL = 'https://api.coingecko.com/api/v3';
+
+            function showListView() {
+                dom.detailsContainer.classList.add('hidden');
+                dom.listContainer.classList.remove('hidden');
+                if (miniChartInstance) {
+                    miniChartInstance.destroy();
+                    miniChartInstance = null;
+                }
+            }
+
+            async function showDetailsView(coin) {
+                try {
+                    currentCoin = coin;
+                    dom.listContainer.classList.add('hidden');
+                    dom.detailsContainer.classList.remove('hidden');
+                    window.scrollTo(0, 0);
+                    
+                    clearDetailsContent();
+                    
+                    renderAssetHeader(coin);
+                    renderMarketData(coin);
+                    renderAiAnalysisCard(coin, true); 
+                    renderFibControls();
+                    loadTradingViewWidgets(coin);
+                    
+                    const historicalData = await fetchHistoricalData(coin.id, 180);
+                    if (historicalData) {
+                        renderIndicatorCards(historicalData);
+                        calculateAndRenderFibonacci(90, historicalData);
+                    } else {
+                        renderIndicatorCards(null);
+                        calculateAndRenderFibonacci(90, null);
+                    }
+
+                    renderMiniChart(coin);
+                    const extraData = await fetchCoinDetails(coin.id);
+                    if (extraData) renderAssetHeader(coin, extraData);
+
+                } catch (error) {
+                    console.error("Erro fatal ao renderizar a vista de detalhes:", error);
+                    dom.detailsGrid.innerHTML = `<div class="xl:col-span-3 text-center p-10"><h2 class="text-2xl font-bold text-red-500">Ocorreu um Erro Inesperado</h2><p class="text-gray-400 mt-2">Não foi possível carregar os detalhes para este ativo. Por favor, tente voltar à lista e selecionar novamente.</p><button id="error-back-btn" class="mt-4 bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg">Voltar para a Lista</button></div>`;
+                    const errorBtn = document.getElementById('error-back-btn');
+                    if (errorBtn) errorBtn.addEventListener('click', showListView);
+                }
+            }
+
+            function clearDetailsContent() {
+                // Limpa apenas os conteúdos dinâmicos, não os containers principais
+                const dynamicContent = ['ai-analysis-card', 'trend-indicator-card', 'rsi-card', 'macd-card', 'market-data-card', 'fib-controls', 'fibonacci-levels-container', 'tradingview-chart-container', 'technical-analysis-widget-container'];
+                dynamicContent.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = '';
+                });
+                if (dom.assetMainHeader) dom.assetMainHeader.innerHTML = '';
+            }
+            
+            const updateFavorites = () => localStorage.setItem('cryptoFavorites', JSON.stringify(favorites));
+            const isFavorite = (coinId) => favorites.includes(coinId);
+            function toggleFavorite(coinId, starElement) {
+                if (isFavorite(coinId)) {
+                    favorites = favorites.filter(id => id !== coinId);
+                    starElement.classList.remove('active');
+                } else {
+                    favorites.push(coinId);
+                    starElement.classList.add('active');
+                }
+                updateFavorites();
+                renderCryptoList(getFilteredData());
+            }
+
+            async function fetchCryptoData() {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=true`);
+                    if (!response.ok) throw new Error(`Erro na API: ${response.status}`);
+                    allCoinsData = await response.json();
+                    renderCryptoList(getFilteredData());
+                    getMarketOverview(allCoinsData.slice(0, 10)); 
+                } catch (error) {
+                    console.error("Falha ao buscar dados:", error);
+                    if(dom.loadingIndicator) dom.loadingIndicator.innerHTML = `<p class="text-red-400">Falha ao carregar dados.</p>`;
+                }
+            }
+            
+            async function fetchCoinDetails(coinId) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/coins/${coinId}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`);
+                    if (!response.ok) return null;
+                    return await response.json();
+                } catch (error) {
+                    console.error("Falha ao buscar detalhes do ativo:", error);
+                    return null;
+                }
+            }
+
+            async function fetchHistoricalData(coinId, days) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/coins/${coinId}/market_chart?vs_currency=usd&days=${days}&interval=daily`);
+                    if (!response.ok) throw new Error('Dados históricos indisponíveis.');
+                    const data = await response.json();
+                    return data.prices.map(p => ({ time: p[0], price: p[1] }));
+                } catch (error) {
+                    console.error(`Erro ao buscar dados de ${days} dias:`, error);
+                    return null;
+                }
+            }
+
+            const getFilteredData = () => {
+                const searchTerm = dom.searchBar.value.toLowerCase().trim();
+                let data = allCoinsData;
+                if (dom.favoritesToggle.checked) data = data.filter(c => isFavorite(c.id));
+                if (searchTerm) data = data.filter(c => c.name.toLowerCase().includes(searchTerm) || c.symbol.toLowerCase().includes(searchTerm));
+                return data;
+            };
+
+            function renderCryptoList(coins) {
+                 if(dom.loadingIndicator) dom.loadingIndicator.style.display = 'none';
+                dom.cryptoList.innerHTML = '';
+                if (coins.length === 0) {
+                    dom.cryptoList.innerHTML = `<p class="text-center text-gray-500 py-10">Nenhum ativo encontrado.</p>`;
+                    return;
+                }
+                coins.forEach(coin => {
+                    const change = coin.price_change_percentage_24h || 0;
+                    const changeClass = change >= 0 ? 'text-green-400' : 'text-red-400';
+                    const favClass = isFavorite(coin.id) ? 'active' : '';
+                    const sparklineData = coin.sparkline_in_7d.price;
+                    const trendUp = sparklineData[sparklineData.length - 1] > sparklineData[0];
+                    const sparklineColor = trendUp ? '#22c55e' : '#ef4444';
+
+                    const coinElement = document.createElement('div');
+                    coinElement.classList.add('crypto-item', 'p-4', 'rounded-lg', 'grid', 'grid-cols-12', 'gap-4', 'items-center');
+                    const starId = `fav-${coin.id}`;
+                    coinElement.innerHTML = `
+                        <div class="col-span-1 flex justify-center"><svg id="${starId}" class="favorite-star w-6 h-6 text-gray-600 ${favClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg></div>
+                        <div class="col-span-3 flex items-center gap-4 cursor-pointer" data-coin-id="${coin.id}"><img src="${coin.image}" alt="${coin.name}" class="w-10 h-10 rounded-full"><div><p class="font-bold text-white">${coin.name}</p><p class="text-sm text-gray-400">${coin.symbol.toUpperCase()}</p></div></div>
+                        <div class="col-span-2 text-right font-mono cursor-pointer" data-coin-id="${coin.id}">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(coin.current_price)}</div>
+                        <div class="col-span-2 text-right font-bold ${changeClass} cursor-pointer" data-coin-id="${coin.id}">${change.toFixed(2)}%</div>
+                        <div class="col-span-2 text-right font-mono text-sm text-gray-400 cursor-pointer" data-coin-id="${coin.id}">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact' }).format(coin.market_cap)}</div>
+                        <div class="col-span-2"><canvas id="sparkline-${coin.id}" height="40"></canvas></div>
+                    `;
+                    dom.cryptoList.appendChild(coinElement);
+                    
+                    const sparklineCanvas = coinElement.querySelector(`#sparkline-${coin.id}`);
+                    if (sparklineCanvas) {
+                        const sparklineCtx = sparklineCanvas.getContext('2d');
+                        new Chart(sparklineCtx, {
+                            type: 'line',
+                            data: { labels: sparklineData.map((_, i) => i), datasets: [{ data: sparklineData, borderColor: sparklineColor, borderWidth: 2, pointRadius: 0, tension: 0.4 }] },
+                            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
+                        });
+                    }
+
+                    coinElement.querySelector(`#${starId}`).addEventListener('click', (e) => { e.stopPropagation(); toggleFavorite(coin.id, e.currentTarget); });
+                    coinElement.querySelectorAll('[data-coin-id]').forEach(el => el.addEventListener('click', () => showDetailsView(coin)));
+                });
+            }
+
+            function renderAssetHeader(coin, extraData = null) {
+                const favClass = isFavorite(coin.id) ? 'active' : '';
+                const homepageLink = extraData?.links?.homepage[0];
+                const explorerLink = extraData?.links?.blockchain_site[0];
+                const change = coin.price_change_percentage_24h || 0;
+                const changeClass = change >= 0 ? 'text-green-400' : 'text-red-400';
+                const changeIcon = change >= 0 ? '▲' : '▼';
+                dom.assetMainHeader.innerHTML = `
+                    <canvas id="mini-chart" class="absolute top-0 left-0 w-full h-full opacity-20"></canvas>
+                    <div class="relative z-10 w-full">
+                        <div class="flex justify-between items-start"><div class="flex items-center gap-4"><img src="${coin.image}" alt="${coin.name}" class="w-16 h-16 rounded-full"><div><div class="flex items-center gap-3"><h1 class="text-3xl sm:text-4xl font-bold text-white">${coin.name}</h1><svg id="fav-details-${coin.id}" class="favorite-star w-7 h-7 text-gray-600 ${favClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg></div><p class="text-lg text-gray-400">${coin.symbol.toUpperCase()}</p></div></div><button id="back-to-list-btn-header" class="bg-gray-700/50 hover:bg-gray-600/50 text-white font-bold py-2 px-4 rounded-lg">&larr; Voltar</button></div>
+                        <div class="mt-4 flex flex-col sm:flex-row justify-between items-end gap-4"><div><p class="text-4xl font-bold text-white">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(coin.current_price)}</p><p class="text-lg font-semibold ${changeClass}">${changeIcon} ${change.toFixed(2)}% (24h)</p></div><div class="flex items-center gap-2">${homepageLink ? `<a href="${homepageLink}" target="_blank" class="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-3 rounded-lg text-sm">Site Oficial</a>` : ''}${explorerLink ? `<a href="${explorerLink}" target="_blank" class="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-3 rounded-lg text-sm">Explorador</a>` : ''}</div></div>
+                    </div>`;
+                dom.assetMainHeader.querySelector(`#fav-details-${coin.id}`).addEventListener('click', (e) => toggleFavorite(coin.id, e.currentTarget));
+                dom.assetMainHeader.querySelector('#back-to-list-btn-header').addEventListener('click', showListView);
+            }
+
+            function renderMarketData(coin) {
+                const formatCurrency = (value, compact = true) => value ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: compact ? 'compact' : 'standard', maximumFractionDigits: compact ? 2 : 6 }).format(value) : 'N/A';
+                const formatNumber = (value) => value ? new Intl.NumberFormat('en-US').format(value) : 'N/A';
+                const athChangeClass = coin.ath_change_percentage >= 0 ? 'text-green-400' : 'text-red-400';
+                dom.marketDataCard.innerHTML = `
+                    <div class="flex items-center gap-3 mb-4"><svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2a4 4 0 00-4-4H3V9h2a4 4 0 004-4V3l4 4-4 4v2a4 4 0 004 4h2v2h-2a4 4 0 00-4 4z"></path></svg><h2 class="text-xl font-bold text-white">Métricas de Mercado</h2></div>
+                    <div class="space-y-3 text-sm"><div class="flex justify-between"><span>Capitalização de Mercado</span><span class="font-mono font-semibold">${formatCurrency(coin.market_cap)}</span></div><div class="flex justify-between"><span>Volume (24h)</span><span class="font-mono font-semibold">${formatCurrency(coin.total_volume)}</span></div><div class="flex justify-between"><span>Fornecimento Circulante</span><span class="font-mono font-semibold">${formatNumber(coin.circulating_supply)} ${coin.symbol.toUpperCase()}</span></div><div class="flex justify-between"><span>Máximo Histórico (ATH)</span><span class="font-mono font-semibold">${formatCurrency(coin.ath, false)}</span></div><div class="flex justify-between"><span>% desde ATH</span><span class="font-mono font-semibold ${athChangeClass}">${coin.ath_change_percentage?.toFixed(2)}%</span></div></div>`;
+            }
+
+            function renderAiAnalysisCard(coin, autoAnalyze = false) {
+                dom.aiAnalysisCard.innerHTML = `
+                    <div class="flex items-center gap-3 mb-4"><svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 16.663c.527-.527.928-1.18.928-1.928 0-.748-.397-1.401-.923-1.928-.527-.527-1.18-.928-1.928-.928s-1.401.397-1.928.923c-.527.527-.928 1.18-.928 1.928s.397 1.401.923 1.928c.527.527 1.18.928 1.928.928s1.401-.397 1.928-.923zM14.337 16.663c.527-.527.928-1.18.928-1.928 0-.748-.397-1.401-.923-1.928-.527-.527-1.18-.928-1.928-.928s-1.401.397-1.928.923c-.527.527-.928 1.18-.928 1.928s.397 1.401.923 1.928c.527.527 1.18.928 1.928.928s1.401-.397 1.928-.923zM12 21a9 9 0 100-18 9 9 0 000 18z"></path></svg><h2 class="text-xl font-bold text-white">Narrativa Analítica com IA</h2></div>
+                    <div id="ai-content" class="text-sm text-gray-400 space-y-4"></div>`;
+                
+                const aiContentEl = dom.aiAnalysisCard.querySelector('#ai-content');
+                if (autoAnalyze) {
+                    getAiAnalysis(coin, false, aiContentEl);
+                } else {
+                    aiContentEl.innerHTML = `<p>Obtenha uma análise qualitativa sobre o projeto, seus pontos fortes, riscos e posicionamento de mercado.</p><button id="get-ai-analysis-btn" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">✨ Analisar com IA</button>`;
+                    const btn = aiContentEl.querySelector('#get-ai-analysis-btn');
+                    if (btn) btn.addEventListener('click', () => getAiAnalysis(coin, false, aiContentEl));
+                }
+            }
+
+            function promptForApiKey() {
+                dom.apiKeyModal.classList.remove('hidden');
+            }
+
+            async function getAiAnalysis(coin, isOverview = false, targetElement) {
+                if (!geminiApiKey) {
+                    pendingAiAction = () => getAiAnalysis(coin, isOverview, targetElement);
+                    promptForApiKey();
+                    return;
+                }
+
+                const aiContent = targetElement;
+                if (!aiContent) {
+                    console.error("AI content target element was not provided.");
+                    return;
+                }
+                aiContent.innerHTML = '<p>Analisando...</p>';
+                
+                let prompt;
+                if (isOverview) {
+                    const topCoinsInfo = coin.map(c => `${c.name} (${c.symbol.toUpperCase()}) com variação de ${c.price_change_percentage_24h.toFixed(2)}%`).join(', ');
+                    prompt = `Aja como um analista de mercado de criptomoedas para o telejornal. Forneça um resumo conciso (2-3 frases) do sentimento do mercado hoje, baseado nos seguintes dados das principais moedas: ${topCoinsInfo}. Seja direto e use uma linguagem clara e informativa, como se estivesse a dar uma nota rápida sobre o estado do mercado. Responda em português do Brasil.`;
+                } else {
+                    prompt = `Aja como um analista de criptomoedas sênior, criando uma "Narrativa Analítica" sobre ${coin.name} (${coin.symbol.toUpperCase()}). Integre os dados de forma fluida no texto, em vez de apenas listá-los. O texto deve ser construtivo e agregador, explicando o que os números significam. Dados: Preço: ${currentCoin.current_price}, Capitalização: ${currentCoin.market_cap}. Comece com uma introdução sobre o projeto. Depois, teça uma análise sobre o momento atual do ativo, mencionando seus riscos e potenciais. Conclua com uma frase sobre seu posicionamento no ecossistema. Responda em português do Brasil, em um parágrafo único e coeso.`;
+                }
+
+                try {
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
+                    const payload = { contents: [{ parts: [{ text: prompt }] }] };
+                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                    const result = await response.json();
+                    if (result.candidates && result.candidates.length > 0) {
+                        const analysisText = result.candidates[0].content.parts[0].text;
+                        aiContent.innerHTML = `<div class="prose prose-sm prose-invert text-gray-300">${analysisText}</div>`;
+                    } else { throw new Error("A resposta da IA não contém conteúdo válido."); }
+                } catch (error) {
+                    console.error("Erro ao chamar a API Gemini:", error);
+                    const retryBtnId = isOverview ? 'market-overview-retry-btn' : 'ai-analysis-retry-btn';
+                    aiContent.innerHTML = `<p class="text-red-400">Não foi possível obter a análise. Verifique sua chave de API ou tente novamente.</p><button id="${retryBtnId}" class="mt-2 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">✨ Tentar Novamente</button>`;
+                    const retryBtn = document.getElementById(retryBtnId);
+                    if (retryBtn) retryBtn.addEventListener('click', () => getAiAnalysis(coin, isOverview, targetElement));
+                }
+            }
+            
+            async function getMarketOverview(topCoins) {
+                if (!topCoins || topCoins.length === 0) {
+                    if (dom.marketOverviewContent) dom.marketOverviewContent.innerHTML = '<p>Aguardando dados para gerar a visão geral.</p>';
+                    return;
+                }
+                await getAiAnalysis(topCoins, true, dom.marketOverviewContent);
+            }
+            
+            const calculateSMA = (prices, period) => { if (prices.length < period) return null; let result = []; for (let i = period - 1; i < prices.length; i++) { result.push(prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0) / period); } return result; };
+            const calculateRSI = (prices, period = 14) => { if (prices.length <= period) return null; let gains = 0, losses = 0; for (let i = 1; i <= period; i++) { const diff = prices[i] - prices[i - 1]; if (diff > 0) gains += diff; else losses -= diff; } let avgGain = gains / period, avgLoss = losses / period; for (let i = period + 1; i < prices.length; i++) { const diff = prices[i] - prices[i - 1]; if (diff > 0) { avgGain = (avgGain * (period - 1) + diff) / period; avgLoss = (avgLoss * (period - 1)) / period; } else { avgGain = (avgGain * (period - 1)) / period; avgLoss = (avgLoss * (period - 1) - diff) / period; } } if (avgLoss === 0) return 100; const rs = avgGain / avgLoss; return 100 - (100 / (1 + rs)); };
+            const calculateMACD = (prices, shortPeriod = 12, longPeriod = 26, signalPeriod = 9) => { if (prices.length < longPeriod) return null; const ema = (data, period) => { const k = 2 / (period + 1); let ema = [data[0]]; for (let i = 1; i < data.length; i++) { ema.push(data[i] * k + ema[i - 1] * (1 - k)); } return ema; }; const emaShort = ema(prices, shortPeriod); const emaLong = ema(prices, longPeriod); const macdLine = emaShort.map((val, i) => val - emaLong[i]); const signalLine = ema(macdLine, signalPeriod); const histogram = macdLine.map((val, i) => val - signalLine[i]); return { macd: macdLine[macdLine.length - 1], signal: signalLine[signalLine.length - 1], histogram: histogram[histogram.length - 1] }; };
+
+            function renderIndicatorCards(historicalData) {
+                if (!historicalData) {
+                    dom.trendCard.innerHTML = `<p class="text-gray-500">Dados indisponíveis para indicadores.</p>`;
+                    dom.rsiCard.innerHTML = ``;
+                    dom.macdCard.innerHTML = ``;
+                    return;
+                }
+                const prices = historicalData.map(p => p.price);
+                const sma20 = calculateSMA(prices, 20), sma50 = calculateSMA(prices, 50);
+                let trend = { text: "Lateral", color: "text-gray-400", icon: "M4 8h16M4 16h16" };
+                if (sma20 && sma50) { const lastSma20 = sma20[sma20.length - 1], lastSma50 = sma50[sma50.length - 1]; if (lastSma20 > lastSma50) trend = { text: "Tendência de Alta", color: "text-green-400", icon: "M5 10l7-7m0 0l7 7m-7-7v18" }; else trend = { text: "Tendência de Baixa", color: "text-red-400", icon: "M19 14l-7 7m0 0l-7-7m7 7V3" }; }
+                dom.trendCard.innerHTML = `<div class="flex items-center gap-3"><svg class="w-6 h-6 ${trend.color}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${trend.icon}"></path></svg><h2 class="text-xl font-bold text-white">Sinal de Tendência</h2></div><p class="text-2xl font-bold mt-2 ${trend.color}">${trend.text}</p><p class="text-xs text-gray-500">Baseado na Média Móvel 20 vs 50 dias</p>`;
+                const rsi = calculateRSI(prices); let rsiStatus = "Neutro", rsiColor = "bg-gray-400"; if (rsi > 70) { rsiStatus = "Sobrecomprado"; rsiColor = "bg-red-500"; } else if (rsi < 30) { rsiStatus = "Sobrevendido"; rsiColor = "bg-green-500"; }
+                dom.rsiCard.innerHTML = `<div class="flex items-center gap-3 mb-4"><svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg><h2 class="text-xl font-bold text-white">Índice de Força Relativa (RSI)</h2></div><div class="flex items-center justify-between mb-2"><span class="font-bold text-3xl">${rsi ? rsi.toFixed(2) : 'N/A'}</span><span class="font-semibold px-2 py-1 rounded text-xs ${rsiColor} text-white">${rsiStatus}</span></div><div class="w-full rsi-gauge-bg rounded-full h-2.5"><div class="rsi-gauge-fill ${rsiColor} h-2.5 rounded-full" style="width: ${rsi ? rsi : 0}%"></div></div>`;
+                const macd = calculateMACD(prices); let macdStatus = "Neutro"; if(macd && macd.histogram > 0 && macd.macd > macd.signal) macdStatus = "Cruzamento de Alta"; if(macd && macd.histogram < 0 && macd.macd < macd.signal) macdStatus = "Cruzamento de Baixa";
+                dom.macdCard.innerHTML = `<div class="flex items-center gap-3 mb-4"><svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"></path></svg><h2 class="text-xl font-bold text-white">MACD</h2></div><div class="space-y-2 text-sm"><div class="flex justify-between"><span>Linha MACD:</span><span class="font-mono">${macd ? macd.macd.toFixed(4) : 'N/A'}</span></div><div class="flex justify-between"><span>Linha de Sinal:</span><span class="font-mono">${macd ? macd.signal.toFixed(4) : 'N/A'}</span></div><div class="flex justify-between"><span>Histograma:</span><span class="font-mono">${macd ? macd.histogram.toFixed(4) : 'N/A'}</span></div></div><p class="text-center mt-3 font-semibold">${macdStatus}</p>`;
+            }
+
+            function renderFibControls() {
+                dom.fibControls.innerHTML = '';
+                [30, 90, 180].forEach(days => {
+                    const button = document.createElement('button'); button.textContent = `${days} dias`; button.classList.add('fib-btn', 'px-3', 'py-1', 'text-sm', 'rounded', 'bg-gray-700', 'hover:bg-gray-600'); button.dataset.days = days; if (days === 90) button.classList.add('bg-indigo-600');
+                    button.addEventListener('click', async (e) => {
+                        document.querySelectorAll('.fib-btn').forEach(btn => btn.classList.remove('bg-indigo-600'));
+                        e.target.classList.add('bg-indigo-600');
+                        const historicalData = await fetchHistoricalData(currentCoin.id, days);
+                        if (historicalData) calculateAndRenderFibonacci(days, historicalData);
+                    });
+                    dom.fibControls.appendChild(button);
+                });
+            }
+
+            function calculateAndRenderFibonacci(days, historicalData) {
+                dom.fibContainer.innerHTML = '<p class="text-gray-400">A calcular níveis...</p>';
+                try {
+                    if (!historicalData || historicalData.length === 0) throw new Error('Dados históricos insuficientes.');
+                    const prices = historicalData.map(p => p.price);
+                    const [swingHigh, swingLow] = prices.reduce(([h, l], p) => [Math.max(h, p), Math.min(l, p)], [-Infinity, Infinity]);
+                    const diff = swingHigh - swingLow; const isUptrend = prices[prices.length - 1] > prices[0];
+                    const levels = [ { level: 0.236, name: "23.6%" }, { level: 0.382, name: "38.2%" }, { level: 0.500, name: "50.0%" }, { level: 0.618, name: "61.8%" }, { level: 0.786, name: "78.6%" }];
+                    let content = `<div class="flex justify-between text-xs text-gray-400 mb-2"><span>Nível</span><span>Preço (USD)</span></div>`;
+                    levels.forEach(item => {
+                        const priceLevel = isUptrend ? swingHigh - (diff * item.level) : swingLow + (diff * item.level);
+                        const isNear = Math.abs(1 - (currentCoin.current_price / priceLevel)) < 0.02;
+                        const highlightClass = isNear ? 'bg-indigo-900/50' : ''; const textClass = isNear ? 'text-indigo-300' : '';
+                        content += `<div class="flex justify-between items-center p-2 rounded ${highlightClass}"><span class="font-bold text-sm ${textClass}">${item.name}</span><span class="font-mono text-sm">${priceLevel.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span></div>`;
+                    });
+                    dom.fibContainer.innerHTML = content;
+                } catch (error) { dom.fibContainer.innerHTML = `<p class="text-red-400">Erro ao calcular: ${error.message}</p>`; }
+            }
+
+            function renderMiniChart(coin) {
+                const sparklineData = coin.sparkline_in_7d.price;
+                if (!sparklineData || sparklineData.length === 0) return;
+                const canvas = document.getElementById('mini-chart');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                if (miniChartInstance) miniChartInstance.destroy();
+                const trendUp = sparklineData[sparklineData.length - 1] > sparklineData[0];
+                const borderColor = trendUp ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)';
+                const gradient = ctx.createLinearGradient(0, 0, 0, 150);
+                gradient.addColorStop(0, trendUp ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)');
+                gradient.addColorStop(1, 'rgba(0,0,0,0)');
+                miniChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: sparklineData.map((_, index) => index), datasets: [{ data: sparklineData, borderColor: borderColor, backgroundColor: gradient, borderWidth: 2, pointRadius: 0, tension: 0.4, fill: true, }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
+                });
+            }
+
+            function loadTradingViewWidgets(coin) {
+                const tradingViewSymbol = `BINANCE:${coin.symbol.toUpperCase()}USDT`;
+                new TradingView.widget({ "container_id": "technical-analysis-widget-container", "width": "100%", "height": "100%", "symbol": tradingViewSymbol, "interval": "D", "locale": "br", "theme": "dark" });
+                new TradingView.widget({ "container_id": "tradingview-chart-container", "autosize": true, "symbol": tradingViewSymbol, "interval": "D", "timezone": "America/Sao_Paulo", "theme": "dark", "style": "1", "locale": "br", "enable_publishing": false, "hide_side_toolbar": false, "details": true, "studies": ["RSI@tv-basicstudies", "MASimple@tv-basicstudies"] });
+            }
+
+            dom.searchBar.addEventListener('input', () => renderCryptoList(getFilteredData()));
+            dom.favoritesToggle.addEventListener('change', () => renderCryptoList(getFilteredData()));
+            dom.saveApiKeyBtn.addEventListener('click', () => {
+                const key = dom.apiKeyInput.value.trim();
+                if (key) {
+                    geminiApiKey = key;
+                    localStorage.setItem('geminiApiKey', geminiApiKey);
+                    dom.apiKeyModal.classList.add('hidden');
+                    if (pendingAiAction) {
+                        pendingAiAction();
+                        pendingAiAction = null;
+                    }
+                }
+            });
+
+            fetchCryptoData();
+            setInterval(fetchCryptoData, 60000);
+        };
+    </script>
+</body>
+</html>
