@@ -99,20 +99,6 @@
         </div>
     </div>
 
-    <!-- Modal para Inserir a Chave da API -->
-    <div id="api-key-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center hidden z-50">
-        <div class="card p-8 rounded-lg max-w-lg w-full m-4">
-            <h2 class="text-2xl font-bold text-white mb-4">Configurar Chave da API Gemini</h2>
-            <p class="text-gray-400 mb-6">Para ativar as funcionalidades de IA, por favor, insira a sua chave pessoal da API Gemini. Ela será guardada de forma segura no seu navegador.</p>
-            <label for="api-key-input" class="font-semibold text-white">Sua Chave da API</label>
-            <input type="password" id="api-key-input" class="w-full mt-2 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Cole a sua chave aqui...">
-            <div class="flex justify-end gap-4 mt-6">
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-gray-400 hover:text-white py-2 px-4 rounded-lg transition-colors">Obter uma Chave</a>
-                <button id="save-api-key-btn" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg">Salvar e Continuar</button>
-            </div>
-        </div>
-    </div>
-
     <script>
         window.onload = function() {
             const dom = {
@@ -134,17 +120,12 @@
                 trendCard: document.getElementById('trend-indicator-card'),
                 rsiCard: document.getElementById('rsi-card'),
                 macdCard: document.getElementById('macd-card'),
-                apiKeyModal: document.getElementById('api-key-modal'),
-                apiKeyInput: document.getElementById('api-key-input'),
-                saveApiKeyBtn: document.getElementById('save-api-key-btn'),
             };
 
             let allCoinsData = [];
             let favorites = JSON.parse(localStorage.getItem('cryptoFavorites')) || [];
             let miniChartInstance = null;
             let currentCoin = null;
-            let geminiApiKey = localStorage.getItem('geminiApiKey') || null;
-            let pendingAiAction = null;
 
             const API_BASE_URL = 'https://api.coingecko.com/api/v3';
 
@@ -163,15 +144,12 @@
                     dom.listContainer.classList.add('hidden');
                     dom.detailsContainer.classList.remove('hidden');
                     window.scrollTo(0, 0);
-                    
                     clearDetailsContent();
-                    
                     renderAssetHeader(coin);
                     renderMarketData(coin);
                     renderAiAnalysisCard(coin, true); 
                     renderFibControls();
                     loadTradingViewWidgets(coin);
-                    
                     const historicalData = await fetchHistoricalData(coin.id, 180);
                     if (historicalData) {
                         renderIndicatorCards(historicalData);
@@ -180,11 +158,9 @@
                         renderIndicatorCards(null);
                         calculateAndRenderFibonacci(90, null);
                     }
-
                     renderMiniChart(coin);
                     const extraData = await fetchCoinDetails(coin.id);
                     if (extraData) renderAssetHeader(coin, extraData);
-
                 } catch (error) {
                     console.error("Erro fatal ao renderizar a vista de detalhes:", error);
                     dom.detailsGrid.innerHTML = `<div class="xl:col-span-3 text-center p-10"><h2 class="text-2xl font-bold text-red-500">Ocorreu um Erro Inesperado</h2><p class="text-gray-400 mt-2">Não foi possível carregar os detalhes para este ativo. Por favor, tente voltar à lista e selecionar novamente.</p><button id="error-back-btn" class="mt-4 bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg">Voltar para a Lista</button></div>`;
@@ -194,7 +170,6 @@
             }
 
             function clearDetailsContent() {
-                // Limpa apenas os conteúdos dinâmicos, não os containers principais
                 const dynamicContent = ['ai-analysis-card', 'trend-indicator-card', 'rsi-card', 'macd-card', 'market-data-card', 'fib-controls', 'fibonacci-levels-container', 'tradingview-chart-container', 'technical-analysis-widget-container'];
                 dynamicContent.forEach(id => {
                     const el = document.getElementById(id);
@@ -280,12 +255,12 @@
                     coinElement.classList.add('crypto-item', 'p-4', 'rounded-lg', 'grid', 'grid-cols-12', 'gap-4', 'items-center');
                     const starId = `fav-${coin.id}`;
                     coinElement.innerHTML = `
-                        <div class="col-span-1 flex justify-center"><svg id="${starId}" class="favorite-star w-6 h-6 text-gray-600 ${favClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg></div>
-                        <div class="col-span-3 flex items-center gap-4 cursor-pointer" data-coin-id="${coin.id}"><img src="${coin.image}" alt="${coin.name}" class="w-10 h-10 rounded-full"><div><p class="font-bold text-white">${coin.name}</p><p class="text-sm text-gray-400">${coin.symbol.toUpperCase()}</p></div></div>
-                        <div class="col-span-2 text-right font-mono cursor-pointer" data-coin-id="${coin.id}">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(coin.current_price)}</div>
-                        <div class="col-span-2 text-right font-bold ${changeClass} cursor-pointer" data-coin-id="${coin.id}">${change.toFixed(2)}%</div>
-                        <div class="col-span-2 text-right font-mono text-sm text-gray-400 cursor-pointer" data-coin-id="${coin.id}">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact' }).format(coin.market_cap)}</div>
-                        <div class="col-span-2"><canvas id="sparkline-${coin.id}" height="40"></canvas></div>
+                        <div class="col-span-2 md:col-span-1 flex justify-center"><svg id="${starId}" class="favorite-star w-6 h-6 text-gray-600 ${favClass}" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg></div>
+                        <div class="col-span-10 md:col-span-3 flex items-center gap-4 cursor-pointer" data-coin-id="${coin.id}"><img src="${coin.image}" alt="${coin.name}" class="w-10 h-10 rounded-full"><div><p class="font-bold text-white">${coin.name}</p><p class="text-sm text-gray-400">${coin.symbol.toUpperCase()}</p></div></div>
+                        <div class="hidden md:col-span-2 md:block text-right font-mono cursor-pointer" data-coin-id="${coin.id}">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(coin.current_price)}</div>
+                        <div class="hidden md:col-span-2 md:block text-right font-bold ${changeClass} cursor-pointer" data-coin-id="${coin.id}">${change.toFixed(2)}%</div>
+                        <div class="hidden md:col-span-2 md:block text-right font-mono text-sm text-gray-400 cursor-pointer" data-coin-id="${coin.id}">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact' }).format(coin.market_cap)}</div>
+                        <div class="hidden lg:col-span-2 lg:block"><canvas id="sparkline-${coin.id}" height="40"></canvas></div>
                     `;
                     dom.cryptoList.appendChild(coinElement);
                     
@@ -345,17 +320,7 @@
                 }
             }
 
-            function promptForApiKey() {
-                dom.apiKeyModal.classList.remove('hidden');
-            }
-
             async function getAiAnalysis(coin, isOverview = false, targetElement) {
-                if (!geminiApiKey) {
-                    pendingAiAction = () => getAiAnalysis(coin, isOverview, targetElement);
-                    promptForApiKey();
-                    return;
-                }
-
                 const aiContent = targetElement;
                 if (!aiContent) {
                     console.error("AI content target element was not provided.");
@@ -372,19 +337,23 @@
                 }
 
                 try {
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
-                    const payload = { contents: [{ parts: [{ text: prompt }] }] };
-                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                    const response = await fetch('/.netlify/functions/gemini-proxy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ prompt })
+                    });
+
+                    if (!response.ok) throw new Error(`Erro no servidor proxy: ${response.status}`);
                     const result = await response.json();
+
                     if (result.candidates && result.candidates.length > 0) {
                         const analysisText = result.candidates[0].content.parts[0].text;
                         aiContent.innerHTML = `<div class="prose prose-sm prose-invert text-gray-300">${analysisText}</div>`;
                     } else { throw new Error("A resposta da IA não contém conteúdo válido."); }
                 } catch (error) {
-                    console.error("Erro ao chamar a API Gemini:", error);
+                    console.error("Erro ao chamar a função proxy:", error);
                     const retryBtnId = isOverview ? 'market-overview-retry-btn' : 'ai-analysis-retry-btn';
-                    aiContent.innerHTML = `<p class="text-red-400">Não foi possível obter a análise. Verifique sua chave de API ou tente novamente.</p><button id="${retryBtnId}" class="mt-2 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">✨ Tentar Novamente</button>`;
+                    aiContent.innerHTML = `<p class="text-red-400">Não foi possível obter a análise. O servidor pode estar ocupado. Tente novamente.</p><button id="${retryBtnId}" class="mt-2 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">✨ Tentar Novamente</button>`;
                     const retryBtn = document.getElementById(retryBtnId);
                     if (retryBtn) retryBtn.addEventListener('click', () => getAiAnalysis(coin, isOverview, targetElement));
                 }
@@ -480,19 +449,7 @@
 
             dom.searchBar.addEventListener('input', () => renderCryptoList(getFilteredData()));
             dom.favoritesToggle.addEventListener('change', () => renderCryptoList(getFilteredData()));
-            dom.saveApiKeyBtn.addEventListener('click', () => {
-                const key = dom.apiKeyInput.value.trim();
-                if (key) {
-                    geminiApiKey = key;
-                    localStorage.setItem('geminiApiKey', geminiApiKey);
-                    dom.apiKeyModal.classList.add('hidden');
-                    if (pendingAiAction) {
-                        pendingAiAction();
-                        pendingAiAction = null;
-                    }
-                }
-            });
-
+            
             fetchCryptoData();
             setInterval(fetchCryptoData, 60000);
         };
