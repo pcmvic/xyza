@@ -99,11 +99,11 @@
         </div>
     </div>
 
-    <!-- Modal para Inserir a Chave da API -->
+    <!-- Modal para Inserir a Chave da API (usado apenas em ambiente de desenvolvimento/pré-visualização) -->
     <div id="api-key-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center hidden z-50">
         <div class="card p-8 rounded-lg max-w-lg w-full m-4">
             <h2 class="text-2xl font-bold text-white mb-4">Configurar Chave da API Gemini</h2>
-            <p class="text-gray-400 mb-6">Para ativar as funcionalidades de IA, por favor, insira a sua chave pessoal da API Gemini. Ela será guardada de forma segura no seu navegador.</p>
+            <p class="text-gray-400 mb-6">Para testar as funcionalidades de IA neste ambiente de pré-visualização, por favor, insira a sua chave pessoal da API Gemini. Ela será guardada no seu navegador.</p>
             <label for="api-key-input" class="font-semibold text-white">Sua Chave da API</label>
             <input type="password" id="api-key-input" class="w-full mt-2 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Cole a sua chave aqui...">
             <div class="flex justify-end gap-4 mt-6">
@@ -147,7 +147,7 @@
             let pendingAiAction = null;
 
             const API_BASE_URL = 'https://api.coingecko.com/api/v3';
-            const isNetlify = window.location.hostname.includes('netlify.app');
+            const isProduction = window.location.hostname.includes('netlify.app');
 
             function showListView() {
                 dom.detailsContainer.classList.add('hidden');
@@ -340,6 +340,10 @@
                 }
             }
 
+            function promptForApiKey() {
+                dom.apiKeyModal.classList.remove('hidden');
+            }
+
             async function getAiAnalysis(coin, isOverview = false, targetElement) {
                 const aiContent = targetElement;
                 if (!aiContent) {
@@ -357,14 +361,28 @@
                 }
 
                 try {
-                    const proxyUrl = new URL('/.netlify/functions/gemini-proxy', window.location.origin);
-                    const response = await fetch(proxyUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt })
-                    });
+                    let response;
+                    if (isProduction) {
+                        // Modo Produção: usa o "porteiro"
+                        const proxyUrl = '/.netlify/functions/gemini-proxy';
+                        response = await fetch(proxyUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ prompt })
+                        });
+                    } else {
+                        // Modo Desenvolvimento/Pré-visualização: pede a chave
+                        if (!geminiApiKey) {
+                            pendingAiAction = () => getAiAnalysis(coin, isOverview, targetElement);
+                            promptForApiKey();
+                            return;
+                        }
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
+                        const payload = { contents: [{ parts: [{ text: prompt }] }] };
+                        response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    }
 
-                    if (!response.ok) throw new Error(`Erro no servidor proxy: ${response.status}`);
+                    if (!response.ok) throw new Error(`Erro na chamada à API: ${response.status}`);
                     const result = await response.json();
 
                     if (result.candidates && result.candidates.length > 0) {
@@ -372,9 +390,9 @@
                         aiContent.innerHTML = `<div class="prose prose-sm prose-invert text-gray-300">${analysisText}</div>`;
                     } else { throw new Error("A resposta da IA não contém conteúdo válido."); }
                 } catch (error) {
-                    console.error("Erro ao chamar a função proxy:", error);
+                    console.error("Erro ao obter análise da IA:", error);
                     const retryBtnId = isOverview ? 'market-overview-retry-btn' : 'ai-analysis-retry-btn';
-                    aiContent.innerHTML = `<p class="text-red-400">Não foi possível obter a análise. O servidor pode estar ocupado. Tente novamente.</p><button id="${retryBtnId}" class="mt-2 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">✨ Tentar Novamente</button>`;
+                    aiContent.innerHTML = `<p class="text-red-400">Não foi possível obter a análise. Verifique a sua conexão ou a configuração da API e tente novamente.</p><button id="${retryBtnId}" class="mt-2 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">✨ Tentar Novamente</button>`;
                     const retryBtn = document.getElementById(retryBtnId);
                     if (retryBtn) retryBtn.addEventListener('click', () => getAiAnalysis(coin, isOverview, targetElement));
                 }
@@ -470,6 +488,18 @@
 
             dom.searchBar.addEventListener('input', () => renderCryptoList(getFilteredData()));
             dom.favoritesToggle.addEventListener('change', () => renderCryptoList(getFilteredData()));
+            dom.saveApiKeyBtn.addEventListener('click', () => {
+                const key = dom.apiKeyInput.value.trim();
+                if (key) {
+                    geminiApiKey = key;
+                    localStorage.setItem('geminiApiKey', geminiApiKey);
+                    dom.apiKeyModal.classList.add('hidden');
+                    if (pendingAiAction) {
+                        pendingAiAction();
+                        pendingAiAction = null;
+                    }
+                }
+            });
             
             fetchCryptoData();
             setInterval(fetchCryptoData, 60000);
