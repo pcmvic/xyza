@@ -99,20 +99,6 @@
         </div>
     </div>
 
-    <!-- Modal para Inserir a Chave da API -->
-    <div id="api-key-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center hidden z-50">
-        <div class="card p-8 rounded-lg max-w-lg w-full m-4">
-            <h2 class="text-2xl font-bold text-white mb-4">Configurar Chave da API Gemini</h2>
-            <p class="text-gray-400 mb-6">Para ativar as funcionalidades de IA, por favor, insira a sua chave pessoal da API Gemini. Ela será guardada de forma segura no seu navegador.</p>
-            <label for="api-key-input" class="font-semibold text-white">Sua Chave da API</label>
-            <input type="password" id="api-key-input" class="w-full mt-2 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Cole a sua chave aqui...">
-            <div class="flex justify-end gap-4 mt-6">
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-gray-400 hover:text-white py-2 px-4 rounded-lg transition-colors">Obter uma Chave</a>
-                <button id="save-api-key-btn" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg">Salvar e Continuar</button>
-            </div>
-        </div>
-    </div>
-
     <script>
         window.onload = function() {
             const dom = {
@@ -134,17 +120,12 @@
                 trendCard: document.getElementById('trend-indicator-card'),
                 rsiCard: document.getElementById('rsi-card'),
                 macdCard: document.getElementById('macd-card'),
-                apiKeyModal: document.getElementById('api-key-modal'),
-                apiKeyInput: document.getElementById('api-key-input'),
-                saveApiKeyBtn: document.getElementById('save-api-key-btn'),
             };
 
             let allCoinsData = [];
             let favorites = JSON.parse(localStorage.getItem('cryptoFavorites')) || [];
             let miniChartInstance = null;
             let currentCoin = null;
-            let geminiApiKey = localStorage.getItem('geminiApiKey') || null;
-            let pendingAiAction = null;
 
             const API_BASE_URL = 'https://api.coingecko.com/api/v3';
 
@@ -356,7 +337,8 @@
                 }
 
                 try {
-                    const response = await fetch('/.netlify/functions/gemini-proxy', {
+                    const proxyUrl = new URL('/.netlify/functions/gemini-proxy', window.location.origin);
+                    const response = await fetch(proxyUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ prompt })
