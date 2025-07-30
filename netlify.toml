@@ -1,0 +1,10 @@
+# Salve este código como: netlify.toml
+# Na pasta raiz do seu projeto.
+
+[build]
+  # Como o nosso index.html está na raiz, não precisamos de especificar nada aqui.
+  # O Netlify irá encontrar o index.html automaticamente.
+
+[functions]
+  # Diz ao Netlify onde encontrar o "código do porteiro".
+  directory = "netlify/functions/"
