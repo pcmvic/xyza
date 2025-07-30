@@ -210,7 +210,6 @@
             }
 
             function clearDetailsContent() {
-                // Atualizado para remover o widget antigo
                 const dynamicContent = ['ai-analysis-card', 'trend-indicator-card', 'rsi-card', 'macd-card', 'market-data-card', 'fib-controls', 'fibonacci-levels-container', 'tradingview-chart-container', 'news-feed'];
                 dynamicContent.forEach(id => {
                     const el = document.getElementById(id);
@@ -435,16 +434,23 @@
                     }
 
                     if (!response.ok) throw new Error(`Erro na chamada à API: ${response.status}`);
+                    
                     const result = await response.json();
+                    
+                    // ======================= PONTO DE DEPURACAO =======================
+                    // A linha abaixo vai mostrar no console do navegador a resposta exata do seu proxy.
+                    // Isso é essencial para confirmar se o formato está correto.
+                    console.log('RESPOSTA DO PROXY/API:', JSON.stringify(result, null, 2));
+                    // =================================================================
 
-                    if (result.candidates && result.candidates.length > 0) {
+                    if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts[0].text) {
                         const analysisText = result.candidates[0].content.parts[0].text;
-                        aiContent.innerHTML = `<div class="prose prose-sm prose-invert text-gray-300">${analysisText}</div>`;
-                    } else { throw new Error("A resposta da IA não contém conteúdo válido."); }
+                        aiContent.innerHTML = `<div class="prose prose-sm prose-invert text-gray-300">${analysisText.replace(/\n/g, '<br>')}</div>`;
+                    } else { throw new Error("A resposta da IA não contém conteúdo válido. Verifique o log 'RESPOSTA DO PROXY/API' no console."); }
                 } catch (error) {
                     console.error("Erro ao obter análise da IA:", error);
                     const retryBtnId = isOverview ? 'market-overview-retry-btn' : 'ai-analysis-retry-btn';
-                    aiContent.innerHTML = `<p class="text-red-400">Não foi possível obter a análise. Verifique a sua conexão ou a configuração da API e tente novamente.</p><button id="${retryBtnId}" class="mt-2 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">✨ Tentar Novamente</button>`;
+                    aiContent.innerHTML = `<p class="text-red-400">Não foi possível obter a análise. Verifique a sua conexão, a configuração da API ou o console do navegador (F12) para mais detalhes.</p><button id="${retryBtnId}" class="mt-2 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">✨ Tentar Novamente</button>`;
                     const retryBtn = document.getElementById(retryBtnId);
                     if (retryBtn) retryBtn.addEventListener('click', () => getAiAnalysis(coin, isOverview, targetElement));
                 }
@@ -532,7 +538,6 @@
                 });
             }
 
-            // ===== FUNÇÃO DO GRÁFICO ATUALIZADA =====
             function loadTradingViewWidgets(coin) {
                 const tradingViewSymbol = `BINANCE:${coin.symbol.toUpperCase()}USDT`;
                 dom.chartContainer.innerHTML = '';
@@ -544,7 +549,7 @@
                     "interval": "D",
                     "timezone": "America/Sao_Paulo",
                     "theme": "dark",
-                    "style": "1", // 1 for Bars, 2 for Candles, 3 for Line etc.
+                    "style": "1",
                     "locale": "br",
                     "toolbar_bg": "#161b22",
                     "enable_publishing": false,
@@ -556,7 +561,6 @@
                         "MASimple@tv-basicstudies",
                         "MACD@tv-basicstudies"
                     ],
-                    // Customizações profundas de estilo para integrar com o tema
                     "overrides": {
                         "paneProperties.background": "#161b22",
                         "paneProperties.vertGridProperties.color": "#2a2e39",
