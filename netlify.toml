@@ -1,10 +1,15 @@
-# Salve este código como: netlify.toml
-# Na pasta raiz do seu projeto.
+# Este é o arquivo de configuração da Netlify.
+# Salve-o como netlify.toml dentro da sua pasta "crypto 4".
 
 [build]
-  # Como o nosso index.html está na raiz, não precisamos de especificar nada aqui.
-  # O Netlify irá encontrar o index.html automaticamente.
+  # Define o diretório base do projeto.
+  # A Netlify vai "entrar" nesta pasta antes de fazer qualquer coisa.
+  base = "crypto 4"
+  
+  # Define o diretório a ser publicado, relativo ao "base".
+  # O ponto "." significa que o index.html está na própria pasta "crypto 4".
+  publish = "."
 
 [functions]
-  # Diz ao Netlify onde encontrar o "código do porteiro".
-  directory = "netlify/functions/"
+  # Define o diretório das funções, também relativo ao "base".
+  directory = "netlify/functions"
