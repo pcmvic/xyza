@@ -36,14 +36,16 @@
             background-color: #1c2128;
             border-color: #4ea8de;
         }
-        #technical-analysis-widget-container { height: 450px; }
-        #tradingview-chart-container { height: 70vh; }
+        /* Ajuste de altura para o novo layout de gráfico único */
+        #tradingview-chart-container { 
+            height: 85vh; 
+            min-height: 600px;
+        }
         .favorite-star { cursor: pointer; transition: color 0.2s, transform 0.2s; }
         .favorite-star:hover { transform: scale(1.2); }
         .favorite-star.active { color: #facc15; }
         .rsi-gauge-bg { background-color: #374151; }
         .rsi-gauge-fill { transition: width 0.5s ease-in-out; }
-        /* ===== NOVA REGRA DE CSS PARA O FEED DE NOTÍCIAS ===== */
         .line-clamp-2 {
             display: -webkit-box;
             -webkit-line-clamp: 2;
@@ -97,26 +99,25 @@
                         <div id="fib-controls" class="flex gap-2 mb-4"></div>
                         <div id="fibonacci-levels-container"></div>
                     </div>
-                    <!-- ===== NOVO CARD DE NOTÍCIAS ===== -->
                     <div id="news-card" class="card p-5 rounded-lg border-t-4 border-orange-500">
                         <div class="flex items-center gap-3 mb-4">
                             <svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 12h6m-6-4h6"></path></svg>
                             <h2 class="text-xl font-bold text-white">Últimas Notícias</h2>
                         </div>
-                        <div id="news-feed" class="space-y-4 max-h-96 overflow-y-auto pr-2">
-                            <!-- O conteúdo das notícias será inserido aqui pelo JavaScript -->
-                        </div>
+                        <div id="news-feed" class="space-y-4 max-h-96 overflow-y-auto pr-2"></div>
                     </div>
                 </div>
+                <!-- ===== COLUNA DA DIREITA REESTRUTURADA ===== -->
                 <div class="xl:col-span-2 flex flex-col gap-6">
-                    <div class="card p-5 rounded-lg"><h2 class="text-xl font-bold text-white mb-4">Gráfico Interativo (TradingView)</h2><div id="tradingview-chart-container"></div></div>
-                    <div class="card p-5 rounded-lg border-t-4 border-blue-500"><div class="flex items-center gap-3 mb-4"><svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2z"></path></svg><h2 class="text-xl font-bold text-white">Resumo Técnico</h2></div><div id="technical-analysis-widget-container"></div></div>
+                    <div class="card rounded-lg p-2 sm:p-4">
+                        <div id="tradingview-chart-container"></div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal para Inserir a Chave da API (usado apenas em ambiente de desenvolvimento/pré-visualização) -->
+    <!-- Modal para Inserir a Chave da API -->
     <div id="api-key-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center hidden z-50">
         <div class="card p-8 rounded-lg max-w-lg w-full m-4">
             <h2 class="text-2xl font-bold text-white mb-4">Configurar Chave da API Gemini</h2>
@@ -144,7 +145,6 @@
                 marketDataCard: document.getElementById('market-data-card'),
                 marketOverviewContent: document.getElementById('market-overview-content'),
                 aiAnalysisCard: document.getElementById('ai-analysis-card'),
-                techAnalysisContainer: document.getElementById('technical-analysis-widget-container'),
                 chartContainer: document.getElementById('tradingview-chart-container'),
                 fibContainer: document.getElementById('fibonacci-levels-container'),
                 fibControls: document.getElementById('fib-controls'),
@@ -154,7 +154,6 @@
                 apiKeyModal: document.getElementById('api-key-modal'),
                 apiKeyInput: document.getElementById('api-key-input'),
                 saveApiKeyBtn: document.getElementById('save-api-key-btn'),
-                // ===== NOVA REFERÊNCIA DE DOM PARA O FEED DE NOTÍCIAS =====
                 newsFeed: document.getElementById('news-feed'),
             };
 
@@ -189,8 +188,6 @@
                     renderAiAnalysisCard(coin, true); 
                     renderFibControls();
                     loadTradingViewWidgets(coin);
-
-                    // ===== CHAMADA PARA A NOVA FUNÇÃO DE NOTÍCIAS =====
                     fetchNews(coin.symbol.toUpperCase());
 
                     const historicalData = await fetchHistoricalData(coin.id, 180);
@@ -213,7 +210,8 @@
             }
 
             function clearDetailsContent() {
-                const dynamicContent = ['ai-analysis-card', 'trend-indicator-card', 'rsi-card', 'macd-card', 'market-data-card', 'fib-controls', 'fibonacci-levels-container', 'tradingview-chart-container', 'technical-analysis-widget-container', 'news-feed'];
+                // Atualizado para remover o widget antigo
+                const dynamicContent = ['ai-analysis-card', 'trend-indicator-card', 'rsi-card', 'macd-card', 'market-data-card', 'fib-controls', 'fibonacci-levels-container', 'tradingview-chart-container', 'news-feed'];
                 dynamicContent.forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.innerHTML = '';
@@ -271,30 +269,23 @@
                 }
             }
 
-            // ===== NOVA FUNÇÃO PARA BUSCAR NOTÍCIAS =====
             async function fetchNews(symbol) {
                 const newsFeedContainer = dom.newsFeed;
                 newsFeedContainer.innerHTML = '<p class="text-gray-400 text-center">Carregando notícias...</p>';
-
                 const apiUrl = `https://min-api.cryptocompare.com/data/v2/news/?lang=PT&categories=${symbol},CRYPTO`;
-
                 try {
                     const response = await fetch(apiUrl);
                     if (!response.ok) throw new Error('Falha ao buscar notícias da API CryptoCompare');
-                    
                     const newsData = await response.json();
-                    newsFeedContainer.innerHTML = ''; // Limpa o loader
-
+                    newsFeedContainer.innerHTML = '';
                     if (newsData.Data && newsData.Data.length > 0) {
-                        newsData.Data.slice(0, 10).forEach(article => { // Limita a 10 artigos
+                        newsData.Data.slice(0, 10).forEach(article => {
                             const articleDate = new Date(article.published_on * 1000).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                            
                             const articleElement = document.createElement('a');
                             articleElement.href = article.url;
                             articleElement.target = '_blank';
                             articleElement.rel = 'noopener noreferrer';
                             articleElement.className = 'block bg-gray-800/50 p-3 rounded-lg hover:bg-gray-700/50 transition-colors';
-
                             articleElement.innerHTML = `
                                 <div class="flex items-start gap-4">
                                     <img src="${article.imageurl}" alt="Imagem da Notícia" class="w-24 h-24 object-cover rounded-md" onerror="this.style.display='none'">
@@ -303,14 +294,12 @@
                                         <p class="text-xs text-gray-400 mt-2">${article.source_info.name} - ${articleDate}</p>
                                         <p class="text-sm text-gray-300 mt-2 line-clamp-2">${article.body}</p>
                                     </div>
-                                </div>
-                            `;
+                                </div>`;
                             newsFeedContainer.appendChild(articleElement);
                         });
                     } else {
                         newsFeedContainer.innerHTML = '<p class="text-gray-500 text-center">Nenhuma notícia recente encontrada para este ativo.</p>';
                     }
-
                 } catch (error) {
                     console.error("Erro ao buscar notícias:", error);
                     newsFeedContainer.innerHTML = '<p class="text-red-400 text-center">Não foi possível carregar as notícias no momento.</p>';
@@ -543,14 +532,46 @@
                 });
             }
 
+            // ===== FUNÇÃO DO GRÁFICO ATUALIZADA =====
             function loadTradingViewWidgets(coin) {
                 const tradingViewSymbol = `BINANCE:${coin.symbol.toUpperCase()}USDT`;
-                // Limpa os containers antes de adicionar novos widgets para evitar duplicatas
-                dom.techAnalysisContainer.innerHTML = '';
                 dom.chartContainer.innerHTML = '';
                 
-                new TradingView.widget({ "container_id": "technical-analysis-widget-container", "width": "100%", "height": "100%", "symbol": tradingViewSymbol, "interval": "D", "locale": "br", "theme": "dark" });
-                new TradingView.widget({ "container_id": "tradingview-chart-container", "autosize": true, "symbol": tradingViewSymbol, "interval": "D", "timezone": "America/Sao_Paulo", "theme": "dark", "style": "1", "locale": "br", "enable_publishing": false, "hide_side_toolbar": false, "details": true, "studies": ["RSI@tv-basicstudies", "MASimple@tv-basicstudies"] });
+                new TradingView.widget({
+                    "container_id": "tradingview-chart-container",
+                    "autosize": true,
+                    "symbol": tradingViewSymbol,
+                    "interval": "D",
+                    "timezone": "America/Sao_Paulo",
+                    "theme": "dark",
+                    "style": "1", // 1 for Bars, 2 for Candles, 3 for Line etc.
+                    "locale": "br",
+                    "toolbar_bg": "#161b22",
+                    "enable_publishing": false,
+                    "hide_top_toolbar": true,
+                    "save_image": false,
+                    "details": true,
+                    "studies": [
+                        "RSI@tv-basicstudies",
+                        "MASimple@tv-basicstudies",
+                        "MACD@tv-basicstudies"
+                    ],
+                    // Customizações profundas de estilo para integrar com o tema
+                    "overrides": {
+                        "paneProperties.background": "#161b22",
+                        "paneProperties.vertGridProperties.color": "#2a2e39",
+                        "paneProperties.horzGridProperties.color": "#2a2e39",
+                        "symbolWatermarkProperties.transparency": 90,
+                        "scalesProperties.textColor": "#9ca3af",
+                        "mainSeriesProperties.candleStyle.upColor": "#22c55e",
+                        "mainSeriesProperties.candleStyle.downColor": "#ef4444",
+                        "mainSeriesProperties.candleStyle.borderColor": "#868686",
+                        "mainSeriesProperties.candleStyle.borderUpColor": "#22c55e",
+                        "mainSeriesProperties.candleStyle.borderDownColor": "#ef4444",
+                        "mainSeriesProperties.candleStyle.wickUpColor": "#22c55e",
+                        "mainSeriesProperties.candleStyle.wickDownColor": "#ef4444"
+                    }
+                });
             }
 
             dom.searchBar.addEventListener('input', () => renderCryptoList(getFilteredData()));
