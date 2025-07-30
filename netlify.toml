@@ -1,15 +1,16 @@
 # Este é o arquivo de configuração da Netlify.
-# Salve-o como netlify.toml dentro da sua pasta "crypto 4".
+# Coloque este arquivo na raiz do seu repositório, NÃO dentro da pasta "crypto 4".
 
 [build]
-  # Define o diretório base do projeto.
+  # Define o diretório base a partir do qual o build será executado.
   # A Netlify vai "entrar" nesta pasta antes de fazer qualquer coisa.
   base = "crypto 4"
   
-  # Define o diretório a ser publicado, relativo ao "base".
-  # O ponto "." significa que o index.html está na própria pasta "crypto 4".
+  # Define o diretório que será publicado, relativo ao "base".
+  # O ponto "." significa que o seu index.html está diretamente dentro de "crypto 4".
   publish = "."
 
 [functions]
-  # Define o diretório das funções, também relativo ao "base".
+  # Define o diretório onde as suas funções serverless (o proxy) estão localizadas.
+  # O caminho também é relativo ao "base".
   directory = "netlify/functions"
