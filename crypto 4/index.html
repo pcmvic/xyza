@@ -99,6 +99,20 @@
         </div>
     </div>
 
+    <!-- Modal para Inserir a Chave da API (usado apenas em ambiente de desenvolvimento/pré-visualização) -->
+    <div id="api-key-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center hidden z-50">
+        <div class="card p-8 rounded-lg max-w-lg w-full m-4">
+            <h2 class="text-2xl font-bold text-white mb-4">Configurar Chave da API Gemini</h2>
+            <p class="text-gray-400 mb-6">Para testar as funcionalidades de IA neste ambiente de pré-visualização, por favor, insira a sua chave pessoal da API Gemini. Ela será guardada no seu navegador.</p>
+            <label for="api-key-input" class="font-semibold text-white">Sua Chave da API</label>
+            <input type="password" id="api-key-input" class="w-full mt-2 px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Cole a sua chave aqui...">
+            <div class="flex justify-end gap-4 mt-6">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-gray-400 hover:text-white py-2 px-4 rounded-lg transition-colors">Obter uma Chave</a>
+                <button id="save-api-key-btn" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg">Salvar e Continuar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         window.onload = function() {
             const dom = {
@@ -120,14 +134,20 @@
                 trendCard: document.getElementById('trend-indicator-card'),
                 rsiCard: document.getElementById('rsi-card'),
                 macdCard: document.getElementById('macd-card'),
+                apiKeyModal: document.getElementById('api-key-modal'),
+                apiKeyInput: document.getElementById('api-key-input'),
+                saveApiKeyBtn: document.getElementById('save-api-key-btn'),
             };
 
             let allCoinsData = [];
             let favorites = JSON.parse(localStorage.getItem('cryptoFavorites')) || [];
             let miniChartInstance = null;
             let currentCoin = null;
+            let geminiApiKey = localStorage.getItem('geminiApiKey') || null;
+            let pendingAiAction = null;
 
             const API_BASE_URL = 'https://api.coingecko.com/api/v3';
+            const isProduction = window.location.hostname.includes('netlify.app');
 
             function showListView() {
                 dom.detailsContainer.classList.add('hidden');
@@ -462,18 +482,20 @@
 
             dom.searchBar.addEventListener('input', () => renderCryptoList(getFilteredData()));
             dom.favoritesToggle.addEventListener('change', () => renderCryptoList(getFilteredData()));
-            dom.saveApiKeyBtn.addEventListener('click', () => {
-                const key = dom.apiKeyInput.value.trim();
-                if (key) {
-                    geminiApiKey = key;
-                    localStorage.setItem('geminiApiKey', geminiApiKey);
-                    dom.apiKeyModal.classList.add('hidden');
-                    if (pendingAiAction) {
-                        pendingAiAction();
-                        pendingAiAction = null;
+            if(dom.saveApiKeyBtn) {
+                dom.saveApiKeyBtn.addEventListener('click', () => {
+                    const key = dom.apiKeyInput.value.trim();
+                    if (key) {
+                        geminiApiKey = key;
+                        localStorage.setItem('geminiApiKey', geminiApiKey);
+                        dom.apiKeyModal.classList.add('hidden');
+                        if (pendingAiAction) {
+                            pendingAiAction();
+                            pendingAiAction = null;
+                        }
                     }
-                }
-            });
+                });
+            }
             
             fetchCryptoData();
             setInterval(fetchCryptoData, 60000);
