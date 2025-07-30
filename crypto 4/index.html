@@ -8,11 +8,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js para o gráfico personalizado -->
+    <!-- Chart.js para os gráficos pequenos (sparklines) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-    <!-- Script do TradingView para os widgets de análise -->
-    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <!-- ECharts para o gráfico principal -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -36,8 +36,7 @@
             background-color: #1c2128;
             border-color: #4ea8de;
         }
-        /* Ajuste de altura para o novo layout de gráfico único */
-        #tradingview-chart-container { 
+        #echarts-chart-container { 
             height: 85vh; 
             min-height: 600px;
         }
@@ -107,10 +106,10 @@
                         <div id="news-feed" class="space-y-4 max-h-96 overflow-y-auto pr-2"></div>
                     </div>
                 </div>
-                <!-- ===== COLUNA DA DIREITA REESTRUTURADA ===== -->
+                <!-- Coluna da Direita com o novo gráfico ECharts -->
                 <div class="xl:col-span-2 flex flex-col gap-6">
                     <div class="card rounded-lg p-2 sm:p-4">
-                        <div id="tradingview-chart-container"></div>
+                        <div id="echarts-chart-container"></div>
                     </div>
                 </div>
             </div>
@@ -145,7 +144,7 @@
                 marketDataCard: document.getElementById('market-data-card'),
                 marketOverviewContent: document.getElementById('market-overview-content'),
                 aiAnalysisCard: document.getElementById('ai-analysis-card'),
-                chartContainer: document.getElementById('tradingview-chart-container'),
+                chartContainer: document.getElementById('echarts-chart-container'), // ID atualizado
                 fibContainer: document.getElementById('fibonacci-levels-container'),
                 fibControls: document.getElementById('fib-controls'),
                 trendCard: document.getElementById('trend-indicator-card'),
@@ -160,6 +159,7 @@
             let allCoinsData = [];
             let favorites = JSON.parse(localStorage.getItem('cryptoFavorites')) || [];
             let miniChartInstance = null;
+            let mainChartInstance = null; // Instância para o ECharts
             let currentCoin = null;
             let geminiApiKey = localStorage.getItem('geminiApiKey') || null;
             let pendingAiAction = null;
@@ -174,6 +174,10 @@
                     miniChartInstance.destroy();
                     miniChartInstance = null;
                 }
+                if (mainChartInstance) {
+                    mainChartInstance.dispose();
+                    mainChartInstance = null;
+                }
             }
 
             async function showDetailsView(coin) {
@@ -187,20 +191,28 @@
                     renderMarketData(coin);
                     renderAiAnalysisCard(coin, true); 
                     renderFibControls();
-                    loadTradingViewWidgets(coin);
-                    fetchNews(coin.symbol.toUpperCase());
+                    fetchNews(coin.name); // Usar o nome completo para melhor busca de notícias
 
+                    // Fetch de dados para indicadores e gráfico principal
                     const historicalData = await fetchHistoricalData(coin.id, 180);
-                    if (historicalData) {
-                        renderIndicatorCards(historicalData);
-                        calculateAndRenderFibonacci(90, historicalData);
+                    const ohlcData = await fetchOHLCData(coin.id, 180);
+
+                    if (historicalData && historicalData.prices) {
+                        renderIndicatorCards(historicalData.prices);
+                        calculateAndRenderFibonacci(90, historicalData.prices);
                     } else {
                         renderIndicatorCards(null);
                         calculateAndRenderFibonacci(90, null);
                     }
+                    
+                    if (ohlcData && historicalData && historicalData.volumes) {
+                        renderECharts(ohlcData, historicalData.volumes);
+                    }
+
                     renderMiniChart(coin);
                     const extraData = await fetchCoinDetails(coin.id);
                     if (extraData) renderAssetHeader(coin, extraData);
+
                 } catch (error) {
                     console.error("Erro fatal ao renderizar a vista de detalhes:", error);
                     dom.detailsGrid.innerHTML = `<div class="xl:col-span-3 text-center p-10"><h2 class="text-2xl font-bold text-red-500">Ocorreu um Erro Inesperado</h2><p class="text-gray-400 mt-2">Não foi possível carregar os detalhes para este ativo. Por favor, tente voltar à lista e selecionar novamente.</p><button id="error-back-btn" class="mt-4 bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg">Voltar para a Lista</button></div>`;
@@ -210,7 +222,7 @@
             }
 
             function clearDetailsContent() {
-                const dynamicContent = ['ai-analysis-card', 'trend-indicator-card', 'rsi-card', 'macd-card', 'market-data-card', 'fib-controls', 'fibonacci-levels-container', 'tradingview-chart-container', 'news-feed'];
+                const dynamicContent = ['ai-analysis-card', 'trend-indicator-card', 'rsi-card', 'macd-card', 'market-data-card', 'fib-controls', 'fibonacci-levels-container', 'echarts-chart-container', 'news-feed'];
                 dynamicContent.forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.innerHTML = '';
@@ -255,31 +267,61 @@
                     return null;
                 }
             }
-
+            
+            // Função atualizada para buscar preços e volumes
             async function fetchHistoricalData(coinId, days) {
                 try {
                     const response = await fetch(`${API_BASE_URL}/coins/${coinId}/market_chart?vs_currency=usd&days=${days}&interval=daily`);
                     if (!response.ok) throw new Error('Dados históricos indisponíveis.');
                     const data = await response.json();
-                    return data.prices.map(p => ({ time: p[0], price: p[1] }));
+                    return {
+                        prices: data.prices.map(p => ({ time: p[0], price: p[1] })),
+                        volumes: data.total_volumes.map(v => [v[0], v[1]]) // Formato para ECharts
+                    };
                 } catch (error) {
                     console.error(`Erro ao buscar dados de ${days} dias:`, error);
                     return null;
                 }
             }
+            
+            // Nova função para buscar dados OHLC
+            async function fetchOHLCData(coinId, days) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/coins/${coinId}/ohlc?vs_currency=usd&days=${days}`);
+                    if (!response.ok) throw new Error('Dados OHLC indisponíveis.');
+                    return await response.json();
+                } catch (error) {
+                    console.error(`Erro ao buscar dados OHLC:`, error);
+                    return null;
+                }
+            }
 
-            async function fetchNews(symbol) {
+            async function fetchNews(query) {
                 const newsFeedContainer = dom.newsFeed;
                 newsFeedContainer.innerHTML = '<p class="text-gray-400 text-center">Carregando notícias...</p>';
-                const apiUrl = `https://min-api.cryptocompare.com/data/v2/news/?lang=PT&categories=${symbol},CRYPTO`;
+                // A API CryptoCompare funciona melhor com o símbolo, mas o nome pode ser um fallback.
+                const symbol = currentCoin.symbol.toUpperCase();
+                const apiUrl = `https://min-api.cryptocompare.com/data/v2/news/?lang=PT&categories=${symbol},${query}`;
+                
                 try {
                     const response = await fetch(apiUrl);
                     if (!response.ok) throw new Error('Falha ao buscar notícias da API CryptoCompare');
                     const newsData = await response.json();
+                    
+                    // Lógica de filtro de tempo
+                    const hoursAgo = 24; // Filtra notícias das últimas 24 horas
+                    const cutoffDate = new Date();
+                    cutoffDate.setHours(cutoffDate.getHours() - hoursAgo);
+                    
+                    const recentArticles = newsData.Data.filter(article => {
+                        const articleDate = new Date(article.published_on * 1000);
+                        return articleDate > cutoffDate;
+                    });
+
                     newsFeedContainer.innerHTML = '';
-                    if (newsData.Data && newsData.Data.length > 0) {
-                        newsData.Data.slice(0, 10).forEach(article => {
-                            const articleDate = new Date(article.published_on * 1000).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    if (recentArticles.length > 0) {
+                        recentArticles.slice(0, 10).forEach(article => {
+                            const articleDate = new Date(article.published_on * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
                             const articleElement = document.createElement('a');
                             articleElement.href = article.url;
                             articleElement.target = '_blank';
@@ -297,7 +339,7 @@
                             newsFeedContainer.appendChild(articleElement);
                         });
                     } else {
-                        newsFeedContainer.innerHTML = '<p class="text-gray-500 text-center">Nenhuma notícia recente encontrada para este ativo.</p>';
+                        newsFeedContainer.innerHTML = `<p class="text-gray-500 text-center">Nenhuma notícia encontrada nas últimas ${hoursAgo} horas.</p>`;
                     }
                 } catch (error) {
                     console.error("Erro ao buscar notícias:", error);
@@ -437,16 +479,10 @@
                     
                     const result = await response.json();
                     
-                    // ======================= PONTO DE DEPURACAO =======================
-                    // A linha abaixo vai mostrar no console do navegador a resposta exata do seu proxy.
-                    // Isso é essencial para confirmar se o formato está correto.
-                    console.log('RESPOSTA DO PROXY/API:', JSON.stringify(result, null, 2));
-                    // =================================================================
-
                     if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts[0].text) {
                         const analysisText = result.candidates[0].content.parts[0].text;
                         aiContent.innerHTML = `<div class="prose prose-sm prose-invert text-gray-300">${analysisText.replace(/\n/g, '<br>')}</div>`;
-                    } else { throw new Error("A resposta da IA não contém conteúdo válido. Verifique o log 'RESPOSTA DO PROXY/API' no console."); }
+                    } else { throw new Error("A resposta da IA não contém conteúdo válido."); }
                 } catch (error) {
                     console.error("Erro ao obter análise da IA:", error);
                     const retryBtnId = isOverview ? 'market-overview-retry-btn' : 'ai-analysis-retry-btn';
@@ -494,7 +530,7 @@
                         document.querySelectorAll('.fib-btn').forEach(btn => btn.classList.remove('bg-indigo-600'));
                         e.target.classList.add('bg-indigo-600');
                         const historicalData = await fetchHistoricalData(currentCoin.id, days);
-                        if (historicalData) calculateAndRenderFibonacci(days, historicalData);
+                        if (historicalData && historicalData.prices) calculateAndRenderFibonacci(days, historicalData.prices);
                     });
                     dom.fibControls.appendChild(button);
                 });
@@ -538,44 +574,153 @@
                 });
             }
 
-            function loadTradingViewWidgets(coin) {
-                const tradingViewSymbol = `BINANCE:${coin.symbol.toUpperCase()}USDT`;
-                dom.chartContainer.innerHTML = '';
-                
-                new TradingView.widget({
-                    "container_id": "tradingview-chart-container",
-                    "autosize": true,
-                    "symbol": tradingViewSymbol,
-                    "interval": "D",
-                    "timezone": "America/Sao_Paulo",
-                    "theme": "dark",
-                    "style": "1",
-                    "locale": "br",
-                    "toolbar_bg": "#161b22",
-                    "enable_publishing": false,
-                    "hide_top_toolbar": true,
-                    "save_image": false,
-                    "details": true,
-                    "studies": [
-                        "RSI@tv-basicstudies",
-                        "MASimple@tv-basicstudies",
-                        "MACD@tv-basicstudies"
-                    ],
-                    "overrides": {
-                        "paneProperties.background": "#161b22",
-                        "paneProperties.vertGridProperties.color": "#2a2e39",
-                        "paneProperties.horzGridProperties.color": "#2a2e39",
-                        "symbolWatermarkProperties.transparency": 90,
-                        "scalesProperties.textColor": "#9ca3af",
-                        "mainSeriesProperties.candleStyle.upColor": "#22c55e",
-                        "mainSeriesProperties.candleStyle.downColor": "#ef4444",
-                        "mainSeriesProperties.candleStyle.borderColor": "#868686",
-                        "mainSeriesProperties.candleStyle.borderUpColor": "#22c55e",
-                        "mainSeriesProperties.candleStyle.borderDownColor": "#ef4444",
-                        "mainSeriesProperties.candleStyle.wickUpColor": "#22c55e",
-                        "mainSeriesProperties.candleStyle.wickDownColor": "#ef4444"
-                    }
+            // =================================================================
+            // NOVA FUNÇÃO PARA RENDERIZAR O GRÁFICO COM ECHARTS
+            // =================================================================
+            function renderECharts(ohlcData, volumeData) {
+                if (mainChartInstance) {
+                    mainChartInstance.dispose();
+                }
+                mainChartInstance = echarts.init(dom.chartContainer, 'dark');
+
+                const upColor = '#22c55e';
+                const downColor = '#ef4444';
+
+                // Processar dados para o formato do ECharts
+                const dates = ohlcData.map(item => {
+                    const date = new Date(item[0]);
+                    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
                 });
+                const ohlcValues = ohlcData.map(item => item.slice(1));
+                const volumeValues = volumeData.map((item, index) => [index, item[1], ohlcData[index][1] > ohlcData[index][4] ? 1 : -1]);
+
+                function calculateMA(dayCount, data) {
+                    var result = [];
+                    for (var i = 0, len = data.length; i < len; i++) {
+                        if (i < dayCount) {
+                            result.push('-');
+                            continue;
+                        }
+                        var sum = 0;
+                        for (var j = 0; j < dayCount; j++) {
+                            sum += +data[i - j][1]; // Usa o preço de fechamento (índice 1 no ohlcValues)
+                        }
+                        result.push(sum / dayCount);
+                    }
+                    return result;
+                }
+
+                const option = {
+                    darkMode: true,
+                    backgroundColor: 'transparent',
+                    animation: true,
+                    legend: {
+                        data: ['Candles', 'MA5', 'MA10', 'MA20'],
+                        inactiveColor: '#777',
+                        textStyle: { color: '#ccc' },
+                        top: '10px'
+                    },
+                    tooltip: {
+                        trigger: 'axis',
+                        axisPointer: { type: 'cross' },
+                        backgroundColor: 'rgba(22, 27, 34, 0.8)',
+                        borderColor: '#30363d',
+                        textStyle: { color: '#ccc' },
+                        position: function (pos, params, el, elRect, size) {
+                            var obj = { top: 10 };
+                            obj[['left', 'right'][+(pos[0] < size.viewSize[0] / 2)]] = 30;
+                            return obj;
+                        }
+                    },
+                    axisPointer: { link: [{ xAxisIndex: 'all' }] },
+                    grid: [
+                        { left: '10%', right: '8%', height: '50%' },
+                        { left: '10%', right: '8%', top: '65%', height: '16%' }
+                    ],
+                    xAxis: [
+                        {
+                            type: 'category',
+                            data: dates,
+                            axisLine: { onZero: false, lineStyle: { color: '#8392A5' } },
+                            splitLine: { show: false },
+                            min: 'dataMin',
+                            max: 'dataMax',
+                            axisPointer: { z: 100 }
+                        },
+                        {
+                            type: 'category',
+                            gridIndex: 1,
+                            data: dates,
+                            axisLabel: { show: false },
+                            axisLine: { lineStyle: { color: '#8392A5' } }
+                        }
+                    ],
+                    yAxis: [
+                        {
+                            scale: true,
+                            axisLine: { lineStyle: { color: '#8392A5' } },
+                            splitLine: { lineStyle: { color: '#30363d' } }
+                        },
+                        {
+                            scale: true,
+                            gridIndex: 1,
+                            axisLabel: { show: false },
+                            axisLine: { show: false },
+                            axisTick: { show: false },
+                            splitLine: { show: false }
+                        }
+                    ],
+                    dataZoom: [
+                        { type: 'inside', xAxisIndex: [0, 1], start: 70, end: 100 },
+                        { show: true, xAxisIndex: [0, 1], type: 'slider', top: '90%', start: 70, end: 100 }
+                    ],
+                    series: [
+                        {
+                            name: 'Candles',
+                            type: 'candlestick',
+                            data: ohlcValues,
+                            itemStyle: {
+                                color: upColor,
+                                color0: downColor,
+                                borderColor: upColor,
+                                borderColor0: downColor
+                            }
+                        },
+                        {
+                            name: 'MA5',
+                            type: 'line',
+                            data: calculateMA(5, ohlcValues),
+                            smooth: true,
+                            lineStyle: { opacity: 0.5 }
+                        },
+                        {
+                            name: 'MA10',
+                            type: 'line',
+                            data: calculateMA(10, ohlcValues),
+                            smooth: true,
+                            lineStyle: { opacity: 0.5 }
+                        },
+                        {
+                            name: 'MA20',
+                            type: 'line',
+                            data: calculateMA(20, ohlcValues),
+                            smooth: true,
+                            lineStyle: { opacity: 0.5 }
+                        },
+                        {
+                            name: 'Volume',
+                            type: 'bar',
+                            xAxisIndex: 1,
+                            yAxisIndex: 1,
+                            data: volumeValues,
+                            itemStyle: {
+                                color: ({ value }) => (value[2] === 1 ? upColor : downColor)
+                            }
+                        }
+                    ]
+                };
+                mainChartInstance.setOption(option);
+                window.addEventListener('resize', () => mainChartInstance.resize());
             }
 
             dom.searchBar.addEventListener('input', () => renderCryptoList(getFilteredData()));
