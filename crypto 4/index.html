@@ -144,7 +144,7 @@
                 marketDataCard: document.getElementById('market-data-card'),
                 marketOverviewContent: document.getElementById('market-overview-content'),
                 aiAnalysisCard: document.getElementById('ai-analysis-card'),
-                chartContainer: document.getElementById('echarts-chart-container'), // ID atualizado
+                chartContainer: document.getElementById('echarts-chart-container'),
                 fibContainer: document.getElementById('fibonacci-levels-container'),
                 fibControls: document.getElementById('fib-controls'),
                 trendCard: document.getElementById('trend-indicator-card'),
@@ -159,7 +159,7 @@
             let allCoinsData = [];
             let favorites = JSON.parse(localStorage.getItem('cryptoFavorites')) || [];
             let miniChartInstance = null;
-            let mainChartInstance = null; // Instância para o ECharts
+            let mainChartInstance = null;
             let currentCoin = null;
             let geminiApiKey = localStorage.getItem('geminiApiKey') || null;
             let pendingAiAction = null;
@@ -187,16 +187,24 @@
                     dom.detailsContainer.classList.remove('hidden');
                     window.scrollTo(0, 0);
                     clearDetailsContent();
+
                     renderAssetHeader(coin);
                     renderMarketData(coin);
                     renderAiAnalysisCard(coin, true); 
                     renderFibControls();
-                    fetchNews(coin.name); // Usar o nome completo para melhor busca de notícias
+                    fetchNews(coin.name);
+                    renderMiniChart(coin);
 
-                    // Fetch de dados para indicadores e gráfico principal
-                    const historicalData = await fetchHistoricalData(coin.id, 180);
-                    const ohlcData = await fetchOHLCData(coin.id, 180);
+                    const [historicalData, ohlcData, extraData] = await Promise.all([
+                        fetchHistoricalData(coin.id, 180),
+                        fetchOHLCData(coin.id, 180),
+                        fetchCoinDetails(coin.id)
+                    ]);
 
+                    if (extraData) {
+                        renderAssetHeader(coin, extraData);
+                    }
+                    
                     if (historicalData && historicalData.prices) {
                         renderIndicatorCards(historicalData.prices);
                         calculateAndRenderFibonacci(90, historicalData.prices);
@@ -205,13 +213,12 @@
                         calculateAndRenderFibonacci(90, null);
                     }
                     
-                    if (ohlcData && historicalData && historicalData.volumes) {
+                    // CORREÇÃO: Adicionada verificação de comprimento dos arrays
+                    if (ohlcData && ohlcData.length > 0 && historicalData && historicalData.volumes && historicalData.volumes.length > 0) {
                         renderECharts(ohlcData, historicalData.volumes);
+                    } else {
+                        dom.chartContainer.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-red-400">Não foi possível carregar os dados do gráfico.</p></div>';
                     }
-
-                    renderMiniChart(coin);
-                    const extraData = await fetchCoinDetails(coin.id);
-                    if (extraData) renderAssetHeader(coin, extraData);
 
                 } catch (error) {
                     console.error("Erro fatal ao renderizar a vista de detalhes:", error);
@@ -268,7 +275,6 @@
                 }
             }
             
-            // Função atualizada para buscar preços e volumes
             async function fetchHistoricalData(coinId, days) {
                 try {
                     const response = await fetch(`${API_BASE_URL}/coins/${coinId}/market_chart?vs_currency=usd&days=${days}&interval=daily`);
@@ -276,7 +282,7 @@
                     const data = await response.json();
                     return {
                         prices: data.prices.map(p => ({ time: p[0], price: p[1] })),
-                        volumes: data.total_volumes.map(v => [v[0], v[1]]) // Formato para ECharts
+                        volumes: data.total_volumes.map(v => [v[0], v[1]])
                     };
                 } catch (error) {
                     console.error(`Erro ao buscar dados de ${days} dias:`, error);
@@ -284,7 +290,6 @@
                 }
             }
             
-            // Nova função para buscar dados OHLC
             async function fetchOHLCData(coinId, days) {
                 try {
                     const response = await fetch(`${API_BASE_URL}/coins/${coinId}/ohlc?vs_currency=usd&days=${days}`);
@@ -299,7 +304,6 @@
             async function fetchNews(query) {
                 const newsFeedContainer = dom.newsFeed;
                 newsFeedContainer.innerHTML = '<p class="text-gray-400 text-center">Carregando notícias...</p>';
-                // A API CryptoCompare funciona melhor com o símbolo, mas o nome pode ser um fallback.
                 const symbol = currentCoin.symbol.toUpperCase();
                 const apiUrl = `https://min-api.cryptocompare.com/data/v2/news/?lang=PT&categories=${symbol},${query}`;
                 
@@ -308,8 +312,7 @@
                     if (!response.ok) throw new Error('Falha ao buscar notícias da API CryptoCompare');
                     const newsData = await response.json();
                     
-                    // Lógica de filtro de tempo
-                    const hoursAgo = 24; // Filtra notícias das últimas 24 horas
+                    const hoursAgo = 24;
                     const cutoffDate = new Date();
                     cutoffDate.setHours(cutoffDate.getHours() - hoursAgo);
                     
@@ -504,14 +507,14 @@
             const calculateRSI = (prices, period = 14) => { if (prices.length <= period) return null; let gains = 0, losses = 0; for (let i = 1; i <= period; i++) { const diff = prices[i] - prices[i - 1]; if (diff > 0) gains += diff; else losses -= diff; } let avgGain = gains / period, avgLoss = losses / period; for (let i = period + 1; i < prices.length; i++) { const diff = prices[i] - prices[i - 1]; if (diff > 0) { avgGain = (avgGain * (period - 1) + diff) / period; avgLoss = (avgLoss * (period - 1)) / period; } else { avgGain = (avgGain * (period - 1)) / period; avgLoss = (avgLoss * (period - 1) - diff) / period; } } if (avgLoss === 0) return 100; const rs = avgGain / avgLoss; return 100 - (100 / (1 + rs)); };
             const calculateMACD = (prices, shortPeriod = 12, longPeriod = 26, signalPeriod = 9) => { if (prices.length < longPeriod) return null; const ema = (data, period) => { const k = 2 / (period + 1); let ema = [data[0]]; for (let i = 1; i < data.length; i++) { ema.push(data[i] * k + ema[i - 1] * (1 - k)); } return ema; }; const emaShort = ema(prices, shortPeriod); const emaLong = ema(prices, longPeriod); const macdLine = emaShort.map((val, i) => val - emaLong[i]); const signalLine = ema(macdLine, signalPeriod); const histogram = macdLine.map((val, i) => val - signalLine[i]); return { macd: macdLine[macdLine.length - 1], signal: signalLine[signalLine.length - 1], histogram: histogram[histogram.length - 1] }; };
 
-            function renderIndicatorCards(historicalData) {
-                if (!historicalData) {
-                    dom.trendCard.innerHTML = `<p class="text-gray-500">Dados indisponíveis para indicadores.</p>`;
-                    dom.rsiCard.innerHTML = ``;
-                    dom.macdCard.innerHTML = ``;
+            function renderIndicatorCards(historicalPrices) {
+                if (!historicalPrices) {
+                    dom.trendCard.innerHTML = `<div class="flex items-center gap-3"><h2 class="text-xl font-bold text-white">Sinal de Tendência</h2></div><p class="text-gray-500 mt-2">Dados indisponíveis.</p>`;
+                    dom.rsiCard.innerHTML = `<div class="flex items-center gap-3"><h2 class="text-xl font-bold text-white">RSI</h2></div><p class="text-gray-500 mt-2">Dados indisponíveis.</p>`;
+                    dom.macdCard.innerHTML = `<div class="flex items-center gap-3"><h2 class="text-xl font-bold text-white">MACD</h2></div><p class="text-gray-500 mt-2">Dados indisponíveis.</p>`;
                     return;
                 }
-                const prices = historicalData.map(p => p.price);
+                const prices = historicalPrices.map(p => p.price);
                 const sma20 = calculateSMA(prices, 20), sma50 = calculateSMA(prices, 50);
                 let trend = { text: "Lateral", color: "text-gray-400", icon: "M4 8h16M4 16h16" };
                 if (sma20 && sma50) { const lastSma20 = sma20[sma20.length - 1], lastSma50 = sma50[sma50.length - 1]; if (lastSma20 > lastSma50) trend = { text: "Tendência de Alta", color: "text-green-400", icon: "M5 10l7-7m0 0l7 7m-7-7v18" }; else trend = { text: "Tendência de Baixa", color: "text-red-400", icon: "M19 14l-7 7m0 0l-7-7m7 7V3" }; }
@@ -536,11 +539,11 @@
                 });
             }
 
-            function calculateAndRenderFibonacci(days, historicalData) {
+            function calculateAndRenderFibonacci(days, historicalPrices) {
                 dom.fibContainer.innerHTML = '<p class="text-gray-400">A calcular níveis...</p>';
                 try {
-                    if (!historicalData || historicalData.length === 0) throw new Error('Dados históricos insuficientes.');
-                    const prices = historicalData.map(p => p.price);
+                    if (!historicalPrices || historicalPrices.length === 0) throw new Error('Dados históricos insuficientes.');
+                    const prices = historicalPrices.map(p => p.price);
                     const [swingHigh, swingLow] = prices.reduce(([h, l], p) => [Math.max(h, p), Math.min(l, p)], [-Infinity, Infinity]);
                     const diff = swingHigh - swingLow; const isUptrend = prices[prices.length - 1] > prices[0];
                     const levels = [ { level: 0.236, name: "23.6%" }, { level: 0.382, name: "38.2%" }, { level: 0.500, name: "50.0%" }, { level: 0.618, name: "61.8%" }, { level: 0.786, name: "78.6%" }];
@@ -574,9 +577,6 @@
                 });
             }
 
-            // =================================================================
-            // NOVA FUNÇÃO PARA RENDERIZAR O GRÁFICO COM ECHARTS
-            // =================================================================
             function renderECharts(ohlcData, volumeData) {
                 if (mainChartInstance) {
                     mainChartInstance.dispose();
@@ -586,13 +586,19 @@
                 const upColor = '#22c55e';
                 const downColor = '#ef4444';
 
-                // Processar dados para o formato do ECharts
-                const dates = ohlcData.map(item => {
+                // CORREÇÃO: Garantir que os dados não são vazios e usar o menor comprimento para evitar dessincronização
+                if (!ohlcData || ohlcData.length === 0 || !volumeData || volumeData.length === 0) {
+                    dom.chartContainer.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-red-400">Dados insuficientes para renderizar o gráfico.</p></div>';
+                    return;
+                }
+                const dataLength = Math.min(ohlcData.length, volumeData.length);
+
+                const dates = ohlcData.slice(0, dataLength).map(item => {
                     const date = new Date(item[0]);
                     return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
                 });
-                const ohlcValues = ohlcData.map(item => item.slice(1));
-                const volumeValues = volumeData.map((item, index) => [index, item[1], ohlcData[index][1] > ohlcData[index][4] ? 1 : -1]);
+                const ohlcValues = ohlcData.slice(0, dataLength).map(item => item.slice(1));
+                const volumeValues = volumeData.slice(0, dataLength).map((item, index) => [index, item[1], ohlcData[index][1] > ohlcData[index][4] ? 1 : -1]);
 
                 function calculateMA(dayCount, data) {
                     var result = [];
